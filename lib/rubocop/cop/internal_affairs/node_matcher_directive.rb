@@ -40,7 +40,7 @@ module RuboCop
           return if node.arguments.none?
           return unless valid_method_name?(node)
 
-          actual_name = node.arguments.first.value
+          actual_name = node.first_argument.value
           directives = method_directives(node)
           return too_many_directives(node) if directives.size > 1
 
@@ -53,7 +53,7 @@ module RuboCop
         private
 
         def valid_method_name?(node)
-          node.arguments.first.str_type? || node.arguments.first.sym_type?
+          node.first_argument.str_type? || node.first_argument.sym_type?
         end
 
         def method_directives(node)
@@ -117,11 +117,11 @@ module RuboCop
         def add_newline?(node)
           # Determine if a blank line should be inserted before the new directive
           # in order to spread out pattern matchers
-          return if node.sibling_index&.zero?
-          return unless node.parent
+          return false if node.sibling_index&.zero?
+          return false unless node.parent
 
           prev_sibling = node.parent.child_nodes[node.sibling_index - 1]
-          return unless prev_sibling && pattern_matcher?(prev_sibling)
+          return false unless prev_sibling && pattern_matcher?(prev_sibling)
 
           node.loc.line == last_line(prev_sibling) + 1
         end

@@ -59,6 +59,25 @@ RSpec.describe RuboCop::Cop::Style::RedundantLineContinuation, :config do
     RUBY
   end
 
+  it 'registers an offense when redundant line continuations for a block are used, ' \
+     'especially without parentheses around first argument' do
+    expect_offense(<<~'RUBY')
+      let :foo do \
+                  ^ Redundant line continuation.
+        foo(bar, \
+                 ^ Redundant line continuation.
+            baz)
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      let :foo do#{' '}
+        foo(bar,#{' '}
+            baz)
+      end
+    RUBY
+  end
+
   it 'registers an offense when redundant line continuations for method chain' do
     expect_offense(<<~'RUBY')
       foo. \
@@ -92,6 +111,95 @@ RSpec.describe RuboCop::Cop::Style::RedundantLineContinuation, :config do
     expect_correction(<<~RUBY)
       foo&.#{trailing_whitespace}
         bar
+    RUBY
+  end
+
+  it 'registers an offense when line continuations with `if`' do
+    expect_offense(<<~'RUBY')
+      if foo \
+             ^ Redundant line continuation.
+      then bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      if foo#{' '}
+      then bar
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when required line continuations for multiline leading dot method chain with an empty line' do
+    expect_no_offenses(<<~'RUBY')
+      obj
+       .foo(42) \
+
+       .bar
+    RUBY
+  end
+
+  it 'does not register an offense when required line continuations for multiline leading dot safe navigation method chain with an empty line' do
+    expect_no_offenses(<<~'RUBY')
+      obj
+       &.foo(42) \
+
+       .bar
+    RUBY
+  end
+
+  it 'does not register an offense when required line continuations for multiline leading dot method chain with a blank line' do
+    expect_no_offenses(<<~RUBY)
+      obj
+       .foo(42) \\
+      #{' '}
+       .bar
+    RUBY
+  end
+
+  it 'registers an offense when redundant line continuations for multiline leading dot method chain without an empty line' do
+    expect_offense(<<~'RUBY')
+      obj
+       .foo(42) \
+                ^ Redundant line continuation.
+       .bar
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj
+       .foo(42)#{' '}
+       .bar
+    RUBY
+  end
+
+  it 'registers an offense when redundant line continuations for multiline trailing dot method chain with an empty line' do
+    expect_offense(<<~'RUBY')
+      obj.
+       foo(42). \
+                ^ Redundant line continuation.
+
+       bar
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.
+       foo(42).#{' '}
+
+       bar
+    RUBY
+  end
+
+  it 'registers an offense when redundant line continuations for multiline trailing dot method chain without an empty line' do
+    expect_offense(<<~'RUBY')
+      obj.
+       foo(42). \
+                ^ Redundant line continuation.
+       bar
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.
+       foo(42).#{' '}
+       bar
     RUBY
   end
 
@@ -191,10 +299,28 @@ RSpec.describe RuboCop::Cop::Style::RedundantLineContinuation, :config do
     RUBY
   end
 
+  it 'does not register an offense when using line concatenation and calling a method without parentheses in multiple expression block' do
+    expect_no_offenses(<<~'RUBY')
+      foo do
+        bar \
+          key: value
+
+        baz
+      end
+    RUBY
+  end
+
   it 'does not register an offense when using line concatenation for assigning a return value and without argument parentheses of method call' do
     expect_no_offenses(<<~'RUBY')
       foo = do_something \
         argument
+    RUBY
+  end
+
+  it 'does not register an offense when using line concatenation for assigning a return value and without hash argument parentheses of method call' do
+    expect_no_offenses(<<~'RUBY')
+      foo.bar = do_something \
+        key: value
     RUBY
   end
 
@@ -348,6 +474,24 @@ RSpec.describe RuboCop::Cop::Style::RedundantLineContinuation, :config do
     expect_no_offenses(<<~'RUBY')
       foo \
         || bar
+    RUBY
+  end
+
+  it 'does not register an offense when line continuations with `&&` in method definition' do
+    expect_no_offenses(<<~'RUBY')
+      def do_something
+        foo \
+          && bar
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when line continuations with `||` in method definition' do
+    expect_no_offenses(<<~'RUBY')
+      def do_something
+        foo \
+          || bar
+      end
     RUBY
   end
 

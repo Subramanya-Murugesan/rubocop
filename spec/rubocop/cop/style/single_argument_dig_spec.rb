@@ -13,6 +13,12 @@ RSpec.describe RuboCop::Cop::Style::SingleArgumentDig, :config do
           { key: 'value' }[:key]
         RUBY
       end
+
+      it 'does not register an offense and corrects unsuitable use of dig with safe navigation operator' do
+        expect_no_offenses(<<~RUBY)
+          { key: 'value' }&.dig(:key)
+        RUBY
+      end
     end
 
     context 'with multiple arguments' do
@@ -38,6 +44,40 @@ RSpec.describe RuboCop::Cop::Style::SingleArgumentDig, :config do
         expect_no_offenses(<<~RUBY)
           def foo(...)
             { key: 'value' }.dig(...)
+          end
+        RUBY
+      end
+    end
+  end
+
+  context '>= Ruby 3.1', :ruby31 do
+    context 'when using dig with anonymous block argument forwarding' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          def foo(&)
+            { key: 'value' }.dig(&)
+          end
+        RUBY
+      end
+    end
+  end
+
+  context '>= Ruby 3.2', :ruby32 do
+    context 'when using dig with anonymous rest argument forwarding' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          def foo(*)
+            { key: 'value' }.dig(*)
+          end
+        RUBY
+      end
+    end
+
+    context 'when using dig with anonymous keyword argument forwarding' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          def foo(**)
+            { key: 'value' }.dig(**)
           end
         RUBY
       end

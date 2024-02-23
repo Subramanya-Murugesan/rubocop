@@ -17,7 +17,6 @@ module RuboCop
       class Exec < Base
         def run
           ensure_server!
-          Cache.status_path.delete if Cache.status_path.file?
           read_stdin = ARGV.include?('-s') || ARGV.include?('--stdin')
           send_request(
             command: 'exec',
@@ -32,7 +31,7 @@ module RuboCop
 
         def ensure_server!
           if incompatible_version?
-            puts 'RuboCop version incompatibility found, RuboCop server restarting...'
+            warn 'RuboCop version incompatibility found, RuboCop server restarting...'
             ClientCommand::Stop.new.run
           elsif check_running_server
             return

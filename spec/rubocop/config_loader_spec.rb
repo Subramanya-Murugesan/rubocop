@@ -9,12 +9,14 @@ RSpec.describe RuboCop::ConfigLoader do
     described_class.debug = true
     # Force reload of default configuration
     described_class.default_configuration = nil
+    RuboCop::ConfigFinder.project_root = nil
   end
 
   after do
     described_class.debug = false
     # Remove custom configuration
     described_class.default_configuration = nil
+    RuboCop::ConfigFinder.project_root = nil
   end
 
   let(:default_config) { described_class.default_configuration }
@@ -26,6 +28,64 @@ RSpec.describe RuboCop::ConfigLoader do
       let(:dir_path) { 'dir' }
 
       before { create_empty_file('dir/example.rb') }
+
+      context 'but a config file exists in .config/.rubocop.yml of the project root' do
+        before do
+          create_empty_file('Gemfile')
+          create_empty_file('.config/.rubocop.yml')
+        end
+
+        it 'returns the path to the file in .config directory' do
+          expect(configuration_file_for).to end_with('.config/.rubocop.yml')
+        end
+      end
+
+      context 'but a config file exists in both .config/.rubocop.yml of the project root and home directory' do
+        before do
+          create_empty_file('Gemfile')
+          create_empty_file('.config/.rubocop.yml')
+          create_empty_file('~/.rubocop.yml')
+        end
+
+        it 'returns the path to the file in .config directory' do
+          expect(configuration_file_for).to end_with('.config/.rubocop.yml')
+        end
+      end
+
+      context 'but a config file exists in .config/rubocop/config.yml of the project root' do
+        before do
+          create_empty_file('Gemfile')
+          create_empty_file('.config/rubocop/config.yml')
+        end
+
+        it 'returns the path to the file in .config/rubocop directory' do
+          expect(configuration_file_for).to end_with('.config/rubocop/config.yml')
+        end
+      end
+
+      context 'but a config file exists in both .config/.rubocop.yml and .config/rubocop/config.yml of the project root' do
+        before do
+          create_empty_file('Gemfile')
+          create_empty_file('.config/.rubocop.yml')
+          create_empty_file('.config/rubocop/config.yml')
+        end
+
+        it 'returns the path to the file in .config directory' do
+          expect(configuration_file_for).to end_with('.config/.rubocop.yml')
+        end
+      end
+
+      context 'but a config file exists in both .config//rubocop/config.yml of the project root and home directory' do
+        before do
+          create_empty_file('Gemfile')
+          create_empty_file('.config/rubocop/config.yml')
+          create_empty_file('~/.rubocop.yml')
+        end
+
+        it 'returns the path to the file in .config/rubocop directory' do
+          expect(configuration_file_for).to end_with('.config/rubocop/config.yml')
+        end
+      end
 
       context 'but a config file exists in home directory' do
         before { create_empty_file('~/.rubocop.yml') }
@@ -283,7 +343,7 @@ RSpec.describe RuboCop::ConfigLoader do
       end
 
       it 'gets an Include that is relative to the subdirectory' do
-        expect(configuration_from_file['Style/StringLiterals']['Include']).to eq(['dir/**/*.rb'])
+        expect(configuration_from_file['Style/StringLiterals']['Include']).to eq(['**/*.rb'])
       end
 
       it 'ignores parent AllCops/Exclude if ignore_parent_exclusion is true' do
@@ -341,7 +401,7 @@ RSpec.describe RuboCop::ConfigLoader do
       end
 
       it 'gets an Include that is relative to the subdirectory' do
-        expect(configuration_from_file['Style/StringLiterals']['Include']).to eq(['src/**/*.rb'])
+        expect(configuration_from_file['Style/StringLiterals']['Include']).to eq(['../src/**/*.rb'])
       end
     end
 
@@ -852,7 +912,7 @@ RSpec.describe RuboCop::ConfigLoader do
             .to output(
               a_string_including(
                 '.rubocop.yml: Custom/Loop has the ' \
-                "wrong namespace - should be Lint\n"
+                "wrong namespace - replace it with Lint/Loop\n"
               )
             ).to_stderr
         end
@@ -1703,6 +1763,24 @@ RSpec.describe RuboCop::ConfigLoader do
         end.to raise_error(
           RuboCop::ValidationError,
           /supposed to be a boolean and disable is not/
+        )
+      end
+    end
+
+    context 'does not set `always`, `contextual`, `disabled`, or boolean to `AutoCorrect`' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          Layout/EmptyComment:
+            AutoCorrect: unknown
+        YAML
+      end
+
+      it 'gets a warning message' do
+        expect do
+          load_file
+        end.to raise_error(
+          RuboCop::ValidationError,
+          /supposed to be `always`, `contextual`, `disabled`, or a boolean and unknown is not/
         )
       end
     end

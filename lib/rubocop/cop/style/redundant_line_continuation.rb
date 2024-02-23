@@ -94,7 +94,8 @@ module RuboCop
           !ends_with_backslash_without_comment?(range.source_line) ||
             string_concatenation?(range.source_line) ||
             start_with_arithmetic_operator?(processed_source[range.line]) ||
-            inside_string_literal_or_method_with_argument?(range)
+            inside_string_literal_or_method_with_argument?(range) ||
+            leading_dot_method_chain_with_blank_line?(range)
         end
 
         def ends_with_backslash_without_comment?(source_line)
@@ -107,16 +108,26 @@ module RuboCop
 
         def inside_string_literal_or_method_with_argument?(range)
           processed_source.tokens.each_cons(2).any? do |token, next_token|
+            next if token.line == next_token.line
+
             inside_string_literal?(range, token) || method_with_argument?(token, next_token)
           end
+        end
+
+        def leading_dot_method_chain_with_blank_line?(range)
+          return false unless range.source_line.strip.start_with?('.', '&.')
+
+          processed_source[range.line].strip.empty?
         end
 
         def redundant_line_continuation?(range)
           return true unless (node = find_node_for_line(range.line))
           return false if argument_newline?(node)
 
-          source = node.parent ? node.parent.source : node.source
-          parse(source.gsub(/\\\n/, "\n")).valid_syntax?
+          continuation_node = node.parent || node
+          return false if allowed_type?(node) || allowed_type?(continuation_node)
+
+          continuation_node.source.include?("\n") || continuation_node.source.include?("\\\n")
         end
 
         def inside_string_literal?(range, token)
@@ -131,17 +142,22 @@ module RuboCop
           current_token.type == :tIDENTIFIER && ARGUMENT_TYPES.include?(next_token.type)
         end
 
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def argument_newline?(node)
+          node = node.to_a.last if node.assignment?
+          return false if node.parenthesized_call?
+
           node = node.children.first if node.root? && node.begin_type?
 
-          if argument_is_method?(node)
-            argument_newline?(node.first_argument)
+          if argument_is_method?(node) || node.begin_type?
+            argument_newline?(node.children.first)
           else
             return false unless method_call_with_arguments?(node)
 
-            node.loc.selector.line != node.first_argument.loc.line
+            !same_line?(node, node.first_argument)
           end
         end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def find_node_for_line(line)
           processed_source.ast.each_node do |node|
@@ -149,8 +165,12 @@ module RuboCop
           end
         end
 
+        def allowed_type?(node)
+          node.and_type? || node.or_type? || (node.if_type? && node.ternary?)
+        end
+
         def same_line?(node, line)
-          return unless (source_range = node.source_range)
+          return false unless (source_range = node.source_range)
 
           if node.is_a?(AST::StrNode)
             if node.heredoc?

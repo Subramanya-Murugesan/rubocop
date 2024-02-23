@@ -48,6 +48,10 @@ module RuboCop
 
         MSG = 'Redundant line break detected.'
 
+        def on_lvasgn(node)
+          super unless end_with_percent_blank_string?(processed_source)
+        end
+
         def on_send(node)
           # Include "the whole expression".
           node = node.parent while node.parent&.send_type? ||
@@ -58,8 +62,13 @@ module RuboCop
 
           register_offense(node)
         end
+        alias on_csend on_send
 
         private
+
+        def end_with_percent_blank_string?(processed_source)
+          processed_source.buffer.source.end_with?("%\n\n")
+        end
 
         def check_assignment(node, _rhs)
           return unless offense?(node)
@@ -76,7 +85,13 @@ module RuboCop
 
         def offense?(node)
           node.multiline? && !too_long?(node) && suitable_as_single_line?(node) &&
-            !configured_to_not_be_inspected?(node)
+            !index_access_call_chained?(node) && !configured_to_not_be_inspected?(node)
+        end
+
+        def index_access_call_chained?(node)
+          return false unless node.send_type? && node.method?(:[])
+
+          node.children.first.send_type? && node.children.first.method?(:[])
         end
 
         def configured_to_not_be_inspected?(node)
@@ -98,9 +113,9 @@ module RuboCop
 
         def suitable_as_single_line?(node)
           !comment_within?(node) &&
-            node.each_descendant(:if, :case, :kwbegin, :def).none? &&
+            node.each_descendant(:if, :case, :kwbegin, :def, :defs).none? &&
             node.each_descendant(:dstr, :str).none? { |n| n.heredoc? || n.value.include?("\n") } &&
-            node.each_descendant(:begin).none? { |b| !b.single_line? }
+            node.each_descendant(:begin, :sym).none? { |b| !b.single_line? }
         end
 
         def convertible_block?(node)
@@ -110,7 +125,9 @@ module RuboCop
         end
 
         def comment_within?(node)
-          processed_source.comments.map(&:loc).map(&:line).any? do |comment_line_number|
+          comment_line_numbers = processed_source.comments.map { |comment| comment.loc.line }
+
+          comment_line_numbers.any? do |comment_line_number|
             comment_line_number >= node.first_line && comment_line_number <= node.last_line
           end
         end
@@ -125,7 +142,7 @@ module RuboCop
             .gsub(/" *\\\n\s*'/, %q(" + ')) # Double quote, backslash, and then single quote
             .gsub(/' *\\\n\s*"/, %q(' + ")) # Single quote, backslash, and then double quote
             .gsub(/(["']) *\\\n\s*\1/, '')  # Double or single quote, backslash, then same quote
-            .gsub(/\n\s*(?=\.\w)/, '')      # Extra space within method chaining
+            .gsub(/\n\s*(?=(&)?\.\w)/, '')  # Extra space within method chaining which includes `&.`
             .gsub(/\s*\\?\n\s*/, ' ')       # Any other line break, with or without backslash
         end
 

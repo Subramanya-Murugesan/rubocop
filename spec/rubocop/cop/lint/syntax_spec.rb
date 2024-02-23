@@ -50,10 +50,16 @@ RSpec.describe RuboCop::Cop::Lint::Syntax, :config do
           expect(offense.severity).to eq(:fatal)
         end
       end
+
+      context 'with `--lsp` option', :lsp do
+        it 'does not include a configuration information in the offense message' do
+          expect(offenses.first.message).to eq('unexpected token $end')
+        end
+      end
     end
 
     context 'with a parser error' do
-      let(:source) { <<-RUBY }
+      let(:source) { <<~RUBY }
         # \xf9
       RUBY
 

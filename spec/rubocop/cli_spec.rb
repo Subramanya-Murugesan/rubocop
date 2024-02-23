@@ -86,6 +86,24 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
     end
   end
 
+  context 'when using an invalid encoding string' do
+    it 'does not crash and reports an offense' do
+      create_file('example.rb', <<~'RUBY')
+        "\xE3\xD3\x8B\xE3\x83\xBC\x83\xE3\x83\xE3\x82\xB3\xA3\x82\x99"
+      RUBY
+      result = cli.run(['--format', 'simple', 'example.rb'])
+      expect(result).to eq(1)
+      expect($stdout.string)
+        .to eq(<<~RESULT)
+          == example.rb ==
+          C:  1:  1: [Correctable] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
+
+          1 file inspected, 1 offense detected, 1 offense autocorrectable
+      RESULT
+      expect($stderr.string).to eq ''
+    end
+  end
+
   context 'when checking a correct file' do
     it 'returns 0' do
       create_file('example.rb', <<~RUBY)
@@ -202,13 +220,26 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
     #       In other words, even if no option is specified, it will be parallelized by default.
     describe 'when parallel static by default' do
       context 'when specifying `--debug` option only`' do
-        it 'fails with an error message' do
+        it 'uses parallel inspection' do
           create_file('example1.rb', <<~RUBY)
             # frozen_string_literal: true
 
             puts 'hello'
           RUBY
           expect(cli.run(['--debug'])).to eq(0)
+          expect($stdout.string.include?('Use parallel by default.')).to be(true)
+        end
+      end
+
+      context 'when specifying configuration file' do
+        it 'uses parallel inspection' do
+          create_file('example1.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            puts 'hello'
+          RUBY
+          create_empty_file('.rubocop.yml')
+          expect(cli.run(['--debug', '--config', '.rubocop.yml'])).to eq(0)
           expect($stdout.string.include?('Use parallel by default.')).to be(true)
         end
       end
@@ -231,7 +262,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       end
 
       context 'when setting `UseCache: true`' do
-        it 'fails with an error message' do
+        it 'uses parallel inspection' do
           create_file('example.rb', <<~RUBY)
             # frozen_string_literal: true
 
@@ -247,7 +278,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       end
 
       context 'when setting `UseCache: false`' do
-        it 'fails with an error message' do
+        it 'does not use parallel inspection' do
           create_file('example.rb', <<~RUBY)
             # frozen_string_literal: true
 
@@ -405,7 +436,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         expect(cli.run(['--format', 'offenses', '-A', 'example.rb'])).to eq(0)
         expect($stdout.string).to eq(<<~RESULT)
 
-          1  Style/FrozenStringLiteralComment
+          1  Style/FrozenStringLiteralComment [Unsafe Correctable]
           --
           1  Total in 1 files
 
@@ -438,7 +469,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
       expect($stderr.string)
         .to eq(['example.rb: Style/LineLength has the wrong ' \
-                'namespace - should be Layout',
+                'namespace - replace it with Layout/LineLength',
                 ''].join("\n"))
       # 2 real cops were disabled, and 1 that was incorrect
       # 2 real cops was enabled, but only 1 had been disabled correctly
@@ -699,7 +730,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              1  Style/AndOr
+              1  Style/AndOr [Unsafe Correctable]
               --
               1  Total in 1 files
 
@@ -715,8 +746,8 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              3  Layout/LineLength
-              1  Style/AndOr
+              3  Layout/LineLength [Safe Correctable]
+              1  Style/AndOr [Unsafe Correctable]
               --
               4  Total in 1 files
 
@@ -736,7 +767,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              3  Layout/LineLength
+              3  Layout/LineLength [Safe Correctable]
               --
               3  Total in 1 files
 
@@ -752,8 +783,8 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              3  Layout/LineLength
-              1  Style/AndOr
+              3  Layout/LineLength [Safe Correctable]
+              1  Style/AndOr [Unsafe Correctable]
               --
               4  Total in 1 files
 
@@ -1047,7 +1078,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       expect($stdout.string)
         .to eq(<<~RESULT)
 
-          1  Layout/TrailingWhitespace
+          1  Layout/TrailingWhitespace [Safe Correctable]
           --
           1  Total in 1 files
 
@@ -1095,6 +1126,23 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       YAML
       expect(cli.run(%w[--format simple])).to eq(0)
       expect($stdout.string).to eq(['', '0 files inspected, no offenses detected', ''].join("\n"))
+    end
+
+    it 'works when `AllCops:Exclude` is empty' do
+      create_file('example.rb', ['x = 0', 'puts x'])
+      create_file('.rubocop.yml', <<~YAML)
+        AllCops:
+          Exclude:
+      YAML
+
+      expect(cli.run(%w[--format simple])).to eq(1)
+      expect($stdout.string).to eq(<<~STDOUT)
+        == example.rb ==
+        C:  1:  1: [Correctable] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
+
+        1 file inspected, 1 offense detected, 1 offense autocorrectable
+      STDOUT
+      expect($stderr.string).to eq ''
     end
 
     it 'only reads configuration in explicitly included hidden directories' do
@@ -1604,18 +1652,18 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
       expect(cli.run(%w[--format simple example])).to eq(1)
 
-      expect($stderr.string).to eq(<<-RESULT.strip_margin('|'))
-        |Warning: Layout/LineLength does not support Min parameter.
-        |
-        |Supported parameters are:
-        |
-        |  - Enabled
-        |  - Max
-        |  - AllowHeredoc
-        |  - AllowURI
-        |  - URISchemes
-        |  - IgnoreCopDirectives
-        |  - AllowedPatterns
+      expect($stderr.string).to eq(<<~RESULT)
+        Warning: Layout/LineLength does not support Min parameter.
+
+        Supported parameters are:
+
+          - Enabled
+          - Max
+          - AllowHeredoc
+          - AllowURI
+          - URISchemes
+          - IgnoreCopDirectives
+          - AllowedPatterns
       RESULT
     end
 
@@ -1772,6 +1820,29 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
   end
 
   describe 'configuration of `AutoCorrect`' do
+    context 'when setting `AutoCorrect: disabled` for `Style/StringLiterals`' do
+      before do
+        create_file('.rubocop.yml', <<~YAML)
+          Style/StringLiterals:
+            AutoCorrect: disabled
+        YAML
+      end
+
+      it 'does not suggest `1 offense autocorrectable` for `Style/StringLiterals`' do
+        create_file('example.rb', <<~RUBY)
+          # frozen_string_literal: true
+
+          a = "Hello"
+        RUBY
+
+        expect(cli.run(['--format', 'simple', 'example.rb'])).to eq(1)
+        expect($stdout.string.lines.to_a.last).to eq(
+          "1 file inspected, 2 offenses detected, 1 offense autocorrectable\n"
+        )
+      end
+    end
+
+    # For backward compatibility, `false` is treated the same as `'disabled'`.
     context 'when setting `AutoCorrect: false` for `Style/StringLiterals`' do
       before do
         create_file('.rubocop.yml', <<~YAML)

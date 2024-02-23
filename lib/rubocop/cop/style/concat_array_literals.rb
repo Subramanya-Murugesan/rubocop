@@ -63,6 +63,7 @@ module RuboCop
           end
         end
         # rubocop:enable Metrics
+        alias on_csend on_send
 
         private
 
@@ -74,7 +75,7 @@ module RuboCop
           new_arguments =
             node.arguments.map do |arg|
               if arg.percent_literal?
-                arg.children.map(&:value).map(&:inspect)
+                arg.children.map { |child| child.value.inspect }
               else
                 arg.children.map(&:source)
               end

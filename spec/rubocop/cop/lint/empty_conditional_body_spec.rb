@@ -75,6 +75,17 @@ RSpec.describe RuboCop::Cop::Lint::EmptyConditionalBody, :config do
     RUBY
   end
 
+  it 'does not register an offense for missing 2nd `if` body with a comment' do
+    expect_no_offenses(<<~RUBY)
+      if condition1
+        do_something1
+      end
+      if condition2
+        # noop
+      end
+    RUBY
+  end
+
   it 'does not register an offense for missing 2nd `elsif` body with a comment' do
     expect_no_offenses(<<~RUBY)
       if condition1
@@ -193,6 +204,38 @@ RSpec.describe RuboCop::Cop::Lint::EmptyConditionalBody, :config do
     expect_correction(<<~RUBY)
       if condition
         do_something
+      end
+    RUBY
+  end
+
+  it 'registers an offense for missing `if` body with conditional `else` body' do
+    expect_offense(<<~RUBY)
+      if condition
+      ^^^^^^^^^^^^ Avoid `if` branches without a body.
+      else
+        do_something if x
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      unless condition
+        do_something if x
+      end
+    RUBY
+  end
+
+  it 'registers an offense for missing `unless` body with conditional `else` body' do
+    expect_offense(<<~RUBY)
+      unless condition
+      ^^^^^^^^^^^^^^^^ Avoid `unless` branches without a body.
+      else
+        do_something if x
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      if condition
+        do_something if x
       end
     RUBY
   end
@@ -347,10 +390,10 @@ RSpec.describe RuboCop::Cop::Lint::EmptyConditionalBody, :config do
     it 'registers an offense for multi-line value omission in `unless`' do
       expect_offense(<<~RUBY)
         var =
+          # This is the value of `other:`, like so: `other: condition || other_condition`
           unless object.action value:, other:
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid `unless` branches without a body.
-            condition || other_condition # This is the value of `other:`, like so:
-                                         # `other: condition || other_condition`
+            condition || other_condition
           end
       RUBY
     end

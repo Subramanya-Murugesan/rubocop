@@ -270,6 +270,23 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is assigned and unreferenced in `for` with multiple variables' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        for i, j in items
+               ^ Useless assignment to variable - `j`.
+          do_something(i)
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        for i, _ in items
+          do_something(i)
+        end
+      RUBY
+    end
+  end
+
   context 'when a variable is assigned and referenced in `for`' do
     it 'does not register an offense' do
       expect_no_offenses(<<~RUBY)
@@ -1181,6 +1198,38 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when variables are assigned using chained assignment and remain unreferenced' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = bar = do_something
+          ^^^ Useless assignment to variable - `foo`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          bar = do_something
+        end
+      RUBY
+    end
+  end
+
+  context 'when variables are assigned with sequential assignment using the comma operator and unreferenced' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = 1, bar = 2
+          ^^^ Useless assignment to variable - `foo`.
+                   ^^^ Useless assignment to variable - `bar`.
+        end
+      RUBY
+
+      # NOTE: Removing the unused variables causes a syntax error, so it can't be autocorrected.
+      expect_no_corrections
+    end
+  end
+
   context 'when a variable is reassigned with multiple assignment ' \
           'while referencing itself in rhs and referenced' do
     it 'accepts' do
@@ -1189,6 +1238,42 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           foo = 1
           foo, bar = do_something(foo)
           puts foo, bar
+        end
+      RUBY
+    end
+  end
+
+  context 'when part of a multiple assignment is enclosed in parentheses' do
+    it 'registers an offense when the variable in parentheses is not used' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo, (bar, baz) = do_something
+                     ^^^ Useless assignment to variable - `baz`. Use `_` or `_baz` as a variable name to indicate that it won't be used.
+          puts foo, bar
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          foo, (bar, _) = do_something
+          puts foo, bar
+        end
+      RUBY
+    end
+
+    it 'registers an offense when the variable in nested parentheses is not used' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo, (bar, (baz, qux)) = do_something
+                           ^^^ Useless assignment to variable - `qux`. Use `_` or `_qux` as a variable name to indicate that it won't be used.
+          puts foo, bar, baz
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          foo, (bar, (baz, _)) = do_something
+          puts foo, bar, baz
         end
       RUBY
     end

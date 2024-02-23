@@ -27,6 +27,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
       end
 
       it 'shows help text' do
+        # FIXME: Update to behavior in accordance with the inquiry results of
+        #        https://bugs.ruby-lang.org/issues/20252
+        skip 'Adjust to the behavior expected of optparse in Ruby 3.4.' if RUBY_VERSION >= '3.4'
+
         begin
           options.parse(['--help'])
         rescue SystemExit # rubocop:disable Lint/SuppressedException
@@ -64,6 +68,8 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                                                files are present in the directory tree.
               -s, --stdin FILE                 Pipe source from STDIN, using FILE in offense
                                                reports. This is useful for editor integration.
+                  --editor-mode                Optimize real-time feedback in editors,
+                                               adjusting behaviors for editing experience.
               -P, --[no-]parallel              Use available CPUs to execute inspection in
                                                parallel. Default is true.
                   --raise-cop-error            Raise cop-related errors with cause and location.
@@ -258,6 +264,13 @@ RSpec.describe RuboCop::Options, :isolated_environment do
           .to raise_error(RuboCop::OptionArgumentError, msg)
       end
 
+      it 'rejects using `--lsp` with `--editor-mode`' do
+        msg = 'Do not specify `--editor-mode` as it is redundant in `--lsp`.'
+        expect do
+          options.parse %w[--lsp --editor-mode]
+        end.to raise_error(RuboCop::OptionArgumentError, msg)
+      end
+
       it 'mentions all incompatible options when more than two are used' do
         msg = 'Incompatible cli options: [:version, :verbose_version, :show_cops]'
         expect { options.parse %w[-vV --show-cops] }
@@ -356,10 +369,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
     end
 
     describe '--display-only-fail-level-offenses' do
-      it 'fails if given with an autocorrect argument' do
-        %w[--fix-layout -x --autocorrect -a --autocorrect-all -A].each do |o|
-          expect { options.parse ['--display-only-correctable', o] }
-            .to raise_error(RuboCop::OptionArgumentError)
+      %w[--fix-layout -x --autocorrect -a --autocorrect-all -A].each do |o|
+        it 'fails if given with an autocorrect argument' do
+          expect { options.parse ['--display-only-fail-level-offenses', o] }
+            .not_to raise_error(RuboCop::OptionArgumentError)
         end
       end
     end
@@ -502,7 +515,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
 
       context 'Specify --autocorrect and --autocorrect-all' do
         it 'emits a warning and sets some autocorrect options' do
-          expect { options.parse options.parse %w[--autocorrect --autocorrect-all] }.to raise_error(
+          expect { options.parse %w[--autocorrect --autocorrect-all] }.to raise_error(
             RuboCop::OptionArgumentError,
             /Error: Both safe and unsafe autocorrect options are specified, use only one./
           )

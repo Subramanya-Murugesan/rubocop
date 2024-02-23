@@ -74,7 +74,7 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
         end
       end
 
-      it 'registers an offense when symbol keys have strings in them' do
+      it 'registers an offense when symbol keys have strings in them', :ruby22 do
         expect_offense(<<~RUBY)
           x = { :"string" => 0 }
                 ^^^^^^^^^^^^ Use the new Ruby 1.9 hash syntax.
@@ -935,6 +935,25 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
         expect_correction(<<~RUBY)
           Hash[foo:]
           do_something
+        RUBY
+      end
+
+      it 'registers and corrects an offense when braced hash key and value are the same and it is used in `if`...`else`' do
+        expect_offense(<<~RUBY)
+          if condition
+            template % {value: value}
+                               ^^^^^ Omit the hash value.
+          else
+            do_something
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          if condition
+            template % {value:}
+          else
+            do_something
+          end
         RUBY
       end
 

@@ -3,8 +3,11 @@
 module RuboCop
   module Cop
     module Style
-      # Sometimes using dig method ends up with just a single
-      # argument. In such cases, dig should be replaced with [].
+      # Sometimes using `dig` method ends up with just a single
+      # argument. In such cases, dig should be replaced with `[]`.
+      #
+      # Since replacing `hash&.dig(:key)` with `hash[:key]` could potentially lead to error,
+      # calls to the `dig` method using safe navigation will be ignored.
       #
       # @safety
       #   This cop is unsafe because it cannot be guaranteed that the receiver
@@ -33,6 +36,7 @@ module RuboCop
 
         MSG = 'Use `%<receiver>s[%<argument>s]` instead of `%<original>s`.'
         RESTRICT_ON_SEND = %i[dig].freeze
+        IGNORED_ARGUMENT_TYPES = %i[block_pass forwarded_restarg forwarded_args hash].freeze
 
         # @!method single_argument_dig?(node)
         def_node_matcher :single_argument_dig?, <<~PATTERN
@@ -44,7 +48,7 @@ module RuboCop
 
           expression = single_argument_dig?(node)
           return unless expression
-          return if expression.forwarded_args_type?
+          return if IGNORED_ARGUMENT_TYPES.include?(expression.type)
 
           receiver = node.receiver.source
           argument = expression.source

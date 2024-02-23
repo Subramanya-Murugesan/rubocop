@@ -62,7 +62,9 @@ module RuboCop
         end
 
         def multiple_statements?(branch)
-          branch && branch.children.compact.count > 1
+          return false unless branch&.begin_type?
+
+          !branch.children.empty?
         end
 
         def self_assign?(variable, branch)
@@ -73,6 +75,11 @@ module RuboCop
           add_offense(offense_branch) do |corrector|
             assignment_value = opposite_branch ? opposite_branch.source : 'nil'
             replacement = "#{assignment_value} #{keyword} #{if_node.condition.source}"
+            if opposite_branch.respond_to?(:heredoc?) && opposite_branch.heredoc?
+              replacement += opposite_branch.loc.heredoc_end.with(
+                begin_pos: opposite_branch.source_range.end_pos
+              ).source
+            end
 
             corrector.replace(if_node, replacement)
           end

@@ -133,7 +133,7 @@ module RuboCop
         end
 
         def percent_array_literal?(node)
-          (percent_w_literal?(node) || percent_w_upper_literal?(node))
+          percent_w_literal?(node) || percent_w_upper_literal?(node)
         end
 
         def heredoc_with_disabled_interpolation?(node)
@@ -156,6 +156,8 @@ module RuboCop
           if literal_in_interpolated_or_multiline_string?(node) || percent_array_literal?(node)
             return delimiter?(node.parent, char)
           end
+
+          return true unless node.loc.begin
 
           delimiters = [node.loc.begin.source[-1], node.loc.end.source[0]]
 

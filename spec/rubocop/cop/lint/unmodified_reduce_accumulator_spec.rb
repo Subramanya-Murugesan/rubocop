@@ -45,6 +45,25 @@ RSpec.describe RuboCop::Cop::Lint::UnmodifiedReduceAccumulator, :config do
         end
       end
 
+      it 'registers an offense when returning the element in the block of safe navigation method call' do
+        aggregate_failures do
+          expect_offense(<<~RUBY)
+            (1..4)&.#{method}(0) do |acc, el|
+              el
+              ^^ Ensure the accumulator `acc` will be modified by `#{method}`.
+            end
+          RUBY
+
+          expect_offense(<<~RUBY)
+            values&.#{method}({}) do |acc, el|
+              acc[el] = true
+              el
+              ^^ Ensure the accumulator `acc` will be modified by `#{method}`.
+            end
+          RUBY
+        end
+      end
+
       it 'registers an offense when called with no argument' do
         expect_offense(<<~RUBY)
           (1..4).#{method} do |acc, el|
@@ -579,13 +598,13 @@ RSpec.describe RuboCop::Cop::Lint::UnmodifiedReduceAccumulator, :config do
 
       context 'argument count' do
         it 'ignores when there are not enough block arguments' do
-          expect_no_offenses(<<~RUBY, method: method)
+          expect_no_offenses(<<~RUBY)
             (1..4).#{method}(0) { |acc| acc.foo }
           RUBY
         end
 
         it 'ignores when there is a splat argument' do
-          expect_no_offenses(<<~RUBY, method: method)
+          expect_no_offenses(<<~RUBY)
             values.#{method}(0) { |*x| x[0] + x[1] }
           RUBY
         end
@@ -606,6 +625,13 @@ RSpec.describe RuboCop::Cop::Lint::UnmodifiedReduceAccumulator, :config do
           expect_offense(<<~RUBY, method: method)
             (1..4).#{method}(0) { _2 }
                    _{method}      ^^ Ensure the accumulator `_1` will be modified by `#{method}`.
+          RUBY
+        end
+
+        it 'registers an offense when returning the element in the block of safe navigation method call' do
+          expect_offense(<<~RUBY, method: method)
+            (1..4)&.#{method}(0) { _2 }
+                    _{method}      ^^ Ensure the accumulator `_1` will be modified by `#{method}`.
           RUBY
         end
 

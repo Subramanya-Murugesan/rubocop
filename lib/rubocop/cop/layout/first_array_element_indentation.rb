@@ -5,7 +5,10 @@ module RuboCop
     module Layout
       # Checks the indentation of the first element in an array literal
       # where the opening bracket and the first element are on separate lines.
-      # The other elements' indentations are handled by the ArrayAlignment cop.
+      # The other elements' indentations are handled by `Layout/ArrayAlignment` cop.
+      #
+      # This cop will respect `Layout/ArrayAlignment` and will not work when
+      # `EnforcedStyle: with_fixed_indentation` is specified for `Layout/ArrayAlignment`.
       #
       # By default, array literals that are arguments in a method call with
       # parentheses, and where the opening square bracket of the array is on the
@@ -25,7 +28,7 @@ module RuboCop
       #   # element are on separate lines is indented one step (two spaces) more
       #   # than the position inside the opening parenthesis.
       #
-      #   #bad
+      #   # bad
       #   array = [
       #     :value
       #   ]
@@ -33,7 +36,7 @@ module RuboCop
       #     :no_difference
       #                        ])
       #
-      #   #good
+      #   # good
       #   array = [
       #     :value
       #   ]
@@ -47,7 +50,7 @@ module RuboCop
       #   # separate lines is indented the same as an array literal which is not
       #   # defined inside a method call.
       #
-      #   #bad
+      #   # bad
       #   # consistent
       #   array = [
       #     :value
@@ -56,7 +59,7 @@ module RuboCop
       #                          :its_like_this
       #   ])
       #
-      #   #good
+      #   # good
       #   array = [
       #     :value
       #   ]
@@ -68,13 +71,13 @@ module RuboCop
       #   # The `align_brackets` style enforces that the opening and closing
       #   # brackets are indented to the same position.
       #
-      #   #bad
+      #   # bad
       #   # align_brackets
       #   and_now_for_something = [
       #                             :completely_different
       #   ]
       #
-      #   #good
+      #   # good
       #   # align_brackets
       #   and_now_for_something = [
       #                             :completely_different
@@ -93,6 +96,8 @@ module RuboCop
         end
 
         def on_send(node)
+          return if style != :consistent && enforce_first_argument_with_fixed_indentation?
+
           each_argument_node(node, :array) do |array_node, left_parenthesis|
             check(array_node, left_parenthesis)
           end
@@ -173,6 +178,16 @@ module RuboCop
             'Indent the right bracket the same as the start of the line ' \
             'where the left bracket is.'
           end
+        end
+
+        def enforce_first_argument_with_fixed_indentation?
+          return false unless array_alignment_config['Enabled']
+
+          array_alignment_config['EnforcedStyle'] == 'with_fixed_indentation'
+        end
+
+        def array_alignment_config
+          config.for_cop('Layout/ArrayAlignment')
         end
       end
     end

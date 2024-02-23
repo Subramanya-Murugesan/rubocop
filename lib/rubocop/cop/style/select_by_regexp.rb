@@ -55,8 +55,8 @@ module RuboCop
         # @!method regexp_match?(node)
         def_node_matcher :regexp_match?, <<~PATTERN
           {
-            (block send (args (arg $_)) ${(send _ %REGEXP_METHODS _) match-with-lvasgn})
-            (numblock send $1 ${(send _ %REGEXP_METHODS _) match-with-lvasgn})
+            (block call (args (arg $_)) ${(send _ %REGEXP_METHODS _) match-with-lvasgn})
+            (numblock call $1 ${(send _ %REGEXP_METHODS _) match-with-lvasgn})
           }
         PATTERN
 
@@ -64,9 +64,9 @@ module RuboCop
         # @!method creates_hash?(node)
         def_node_matcher :creates_hash?, <<~PATTERN
           {
-            (send (const _ :Hash) {:new :[]} ...)
-            (block (send (const _ :Hash) :new ...) ...)
-            (send _ { :to_h :to_hash } ...)
+            (call (const _ :Hash) {:new :[]} ...)
+            (block (call (const _ :Hash) :new ...) ...)
+            (call _ { :to_h :to_hash } ...)
           }
         PATTERN
 
@@ -100,6 +100,7 @@ module RuboCop
           register_offense(node, block_node, regexp, replacement)
         end
         # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        alias on_csend on_send
 
         private
 
@@ -146,7 +147,7 @@ module RuboCop
           return node.child_nodes.first if node.match_with_lvasgn_type?
 
           if node.receiver.lvar_type? &&
-             (block.numblock_type? || node.receiver.source == block.arguments.first.source)
+             (block.numblock_type? || node.receiver.source == block.first_argument.source)
             node.first_argument
           elsif node.first_argument.lvar_type?
             node.receiver

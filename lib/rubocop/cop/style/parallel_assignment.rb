@@ -142,8 +142,8 @@ module RuboCop
             @assignments = assignments
           end
 
-          def tsort_each_node(&block)
-            @assignments.each(&block)
+          def tsort_each_node(...)
+            @assignments.each(...)
           end
 
           def tsort_each_child(assignment)
@@ -289,9 +289,7 @@ module RuboCop
           private
 
           def modifier_range(node)
-            Parser::Source::Range.new(node.source_range.source_buffer,
-                                      node.loc.keyword.begin_pos,
-                                      node.source_range.end_pos)
+            node.loc.keyword.join(node.source_range.end)
           end
         end
       end

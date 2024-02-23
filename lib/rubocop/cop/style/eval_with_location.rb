@@ -84,7 +84,7 @@ module RuboCop
           # are considered.
           return if node.method?(:eval) && !valid_eval_receiver?(node.receiver)
 
-          code = node.arguments.first
+          code = node.first_argument
           return unless code && (code.str_type? || code.dstr_type?)
 
           check_location(node, code)
@@ -128,17 +128,6 @@ module RuboCop
           node.method?(:eval) ? node.arguments.size >= 2 : true
         end
 
-        # FIXME: It's a Style/ConditionalAssignment's false positive.
-        # rubocop:disable Style/ConditionalAssignment
-        def with_lineno?(node)
-          if node.method?(:eval)
-            node.arguments.size == 4
-          else
-            node.arguments.size == 3
-          end
-        end
-        # rubocop:enable Style/ConditionalAssignment
-
         def add_offense_for_incorrect_line(method_name, line_node, sign, line_diff)
           expected = expected_line(sign, line_diff)
           message = format(MSG_INCORRECT_LINE,
@@ -165,7 +154,7 @@ module RuboCop
         end
 
         def check_line(node, code)
-          line_node = node.arguments.last
+          line_node = node.last_argument
           line_diff = line_difference(line_node, code)
           if line_diff.zero?
             add_offense_for_same_line(node, line_node)
@@ -227,7 +216,7 @@ module RuboCop
         end
 
         def missing_line(node, code)
-          line_diff = line_difference(node.arguments.last, code)
+          line_diff = line_difference(node.last_argument, code)
           sign = line_diff.positive? ? :+ : :-
           expected_line(sign, line_diff)
         end

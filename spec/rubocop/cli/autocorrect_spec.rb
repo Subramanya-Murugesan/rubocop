@@ -206,6 +206,27 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'does not correct `AllowInMultilineConditions: true` of `Style/ParenthesesAroundCondition` with `Style/RedundantParentheses`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/ParenthesesAroundCondition:
+        AllowInMultilineConditions: true
+    YAML
+    source = <<~RUBY
+      if (foo &&
+          bar)
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run(['--autocorrect', '--only',
+                    'Style/ParenthesesAroundCondition,' \
+                    'Style/RedundantParentheses'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      if (foo &&
+          bar)
+      end
+    RUBY
+  end
+
   it 'corrects `EnforcedShorthandSyntax: always` of `Style/HashSyntax` with `Style/RedundantParentheses` when using Ruby 3.1' do
     create_file('.rubocop.yml', <<~YAML)
       AllCops:
@@ -436,6 +457,36 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `EnforcedStyle: omit_parentheses` of `Style/MethodCallWithArgsParentheses` with ' \
+     '`Style/SuperWithArgsParentheses`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/MethodCallWithArgsParentheses:
+        EnforcedStyle: omit_parentheses
+    YAML
+    create_file('example.rb', <<~RUBY)
+      class Derived < Base
+        def do_something(arg)
+         super(arg)
+        end
+      end
+    RUBY
+    expect(
+      cli.run(
+        [
+          '--autocorrect',
+          '--only', 'Style/MethodCallWithArgsParentheses,Style/SuperWithArgsParentheses'
+        ]
+      )
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      class Derived < Base
+        def do_something(arg)
+         super(arg)
+        end
+      end
+    RUBY
+  end
+
   it 'corrects `Style/IfUnlessModifier` with `Style/SoleNestedConditional`' do
     source = <<~RUBY
       def foo
@@ -516,6 +567,52 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(File.read('example.rb')).to eq(<<~RUBY)
       def foo(options, &)
         bar(**options, &)
+      end
+    RUBY
+  end
+
+  it 'corrects `Naming/BlockForwarding` with `Style/ArgumentsForwarding`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.2
+    YAML
+    source = <<~RUBY
+      def some_method(form, **options, &block)
+        render 'template', form: form, **options, &block
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect',
+                     '--only', 'Naming/BlockForwarding,Style/ArgumentsForwarding'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def some_method(form, **, &)
+        render('template', form: form, **, &)
+      end
+    RUBY
+  end
+
+  it 'corrects `EnforcedStyle: explicit` of `Naming/BlockForwarding` with `Style/ArgumentsForwarding`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.1
+      Naming/BlockForwarding:
+        EnforcedStyle: explicit
+    YAML
+    source = <<~RUBY
+      def some_method(&block)
+        render &block
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect',
+                     '--only', 'Naming/BlockForwarding,Style/ArgumentsForwarding'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def some_method(&block)
+        render &block
       end
     RUBY
   end
@@ -980,7 +1077,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     create_file('example.rb', source)
     create_file('.rubocop.yml', <<~YAML)
       Layout/DefEndAlignment:
-        AutoCorrect: true
+        AutoCorrect: always
     YAML
     expect(cli.run(['--autocorrect-all'])).to eq(0)
     corrected = <<~RUBY
@@ -1526,14 +1623,14 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
     expect($stdout.string).to eq(<<~RESULT)
 
-      4   Layout/TrailingWhitespace
-      3   Style/Semicolon
-      2   Layout/IndentationConsistency
-      2   Style/SingleLineMethods
-      1   Layout/DefEndAlignment
-      1   Layout/EmptyLineBetweenDefs
-      1   Style/DefWithParentheses
-      1   Style/TrailingBodyOnMethodDefinition
+      4   Layout/TrailingWhitespace [Safe Correctable]
+      3   Style/Semicolon [Safe Correctable]
+      2   Layout/IndentationConsistency [Safe Correctable]
+      2   Style/SingleLineMethods [Safe Correctable]
+      1   Layout/DefEndAlignment [Safe Correctable]
+      1   Layout/EmptyLineBetweenDefs [Safe Correctable]
+      1   Style/DefWithParentheses [Safe Correctable]
+      1   Style/TrailingBodyOnMethodDefinition [Safe Correctable]
       --
       15  Total in 1 files
 
@@ -1640,8 +1737,8 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect($stdout.string)
       .to eq(<<~RESULT)
 
-        4  Layout/SpaceAfterComma
-        2  Style/WordArray
+        4  Layout/SpaceAfterComma [Safe Correctable]
+        2  Style/WordArray [Safe Correctable]
         --
         6  Total in 1 files
 
@@ -1651,6 +1748,18 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
         f(type: %w[offline offline_payment],
           bar_colors: %w[958c12 953579 ff5800 0085cc])
       RUBY
+  end
+
+  it 'corrects `Layout/SpaceAfterComma` with `Layout/SpaceBeforeSemicolon`' do
+    create_file('example.rb', <<~RUBY)
+      foo { |a, ; x|
+      }
+    RUBY
+    expect(cli.run(%w[-a --only Layout/SpaceAfterComma,Layout/SpaceBeforeSemicolon])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      foo { |a,; x|
+      }
+    RUBY
   end
 
   it 'can correct SpaceAfterComma and HashSyntax offenses' do
@@ -1760,7 +1869,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       AllCops:
         TargetRubyVersion: 2.7
       Style/Semicolon:
-        AutoCorrect: false
+        AutoCorrect: disabled
     YAML
     create_file('example.rb', src)
     exit_status = cli.run(
@@ -1833,7 +1942,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     create_file('example.rb', 'puts "Hello", 123456')
     create_file('.rubocop.yml', <<~YAML)
       Style/StringLiterals:
-        AutoCorrect: false
+        AutoCorrect: disabled
     YAML
     expect(cli.run(%w[--autocorrect-all])).to eq(1)
     expect($stderr.string).to eq('')
@@ -1978,6 +2087,18 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       # frozen_string_literal: true
 
       foo != nil
+    RUBY
+  end
+
+  it 'corrects `Lint/AmbiguousRange` and offenses and accepts Style/RedundantParentheses' do
+    create_file('example.rb', <<~RUBY)
+      x...(y || z)
+    RUBY
+    expect(
+      cli.run(['--autocorrect-all', '--only', 'Lint/AmbiguousRange,Style/RedundantParentheses'])
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      x...(y || z)
     RUBY
   end
 
@@ -2329,6 +2450,34 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects when specifying `EnforcedStyle: with_fixed_indentation` of `Layout/ArrayAlignment` and ' \
+     '`Layout/FirstArrayElementIndentation`' do
+    create_file('example.rb', <<~RUBY)
+      puts([
+        'foo',
+        'bar'
+      ])
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/ArrayAlignment:
+        EnforcedStyle: with_fixed_indentation
+    YAML
+
+    expect(
+      cli.run(
+        ['--autocorrect', '--only', 'Layout/ArrayAlignment,Layout/FirstArrayElementIndentation']
+      )
+    ).to eq(0)
+    expect($stderr.string).to eq('')
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      puts([
+        'foo',
+        'bar'
+      ])
+    RUBY
+  end
+
   it 'does not crash Lint/SafeNavigationWithEmpty and offenses and accepts Style/SafeNavigation ' \
      'when checking `foo&.empty?` in a conditional' do
     create_file('example.rb', <<~RUBY)
@@ -2441,6 +2590,30 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
 
       example.select { |item| item.cond? && other }
              .join('-')
+    RUBY
+  end
+
+  it 'corrects `Layout/RedundantLineBreak` and `Style/SingleLineMethods` offenses' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 2.7
+      Layout/RedundantLineBreak:
+        Enabled: true
+      Layout/SingleLineMethods:
+        Enabled: true
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      x def self.y; z end
+    RUBY
+
+    expect(cli.run(['-a', '--only', 'Layout/RedundantLineBreak,Style/SingleLineMethods'])).to eq(0)
+
+    expect(source_file.read).to eq(<<~RUBY)
+      x def self.y;#{' '}
+          z#{' '}
+        end
     RUBY
   end
 
@@ -2648,6 +2821,21 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `Style/MapToHash` and `Layout/SingleLineBlockChain` offenses' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      obj.map { |i| foo(i) }.to_h
+         .bar
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/MapToHash,Layout/SingleLineBlockChain'])).to eq(0)
+
+    expect(source_file.read).to eq(<<~RUBY)
+      obj.to_h { |i| foo(i) }
+         .bar
+    RUBY
+  end
+
   it 'does not crash when using `Layout/CaseIndentation` and `Layout/ElseAlignment`' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
@@ -2664,7 +2852,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     create_file('.rubocop.yml', <<~YAML)
       Layout/BeginEndAlignment:
         EnforcedStyleAlignWith: start_of_line
-        AutoCorrect: true
+        AutoCorrect: always
 
       Layout/CaseIndentation:
         EnforcedStyle: end
@@ -2837,6 +3025,21 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'does not cause an infinite loop error for `Style/MultilineTernaryOperator`' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      do_something(arg
+                     .foo ? bar : baz)
+    RUBY
+
+    status = cli.run(%w[--autocorrect-all --only Style/MultilineTernaryOperator])
+    expect(status).to eq(0)
+    expect(source_file.read).to eq(<<~RUBY)
+      do_something(arg
+                     .foo ? bar : baz)
+    RUBY
+  end
+
   it 'respects `Lint/ConstantResolution` over `Style/RedundantConstantBase` when enabling`Lint/ConstantResolution`' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
@@ -2877,6 +3080,37 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(status).to eq(1)
     expect(source_file.read).to eq(<<~RUBY)
       RSpec.configure do |config|
+      end
+    RUBY
+  end
+
+  it 'corrects `Lint/UselessAssignment` offenses when variables are assigned with chained assignment and unreferenced' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      def some_method
+        foo = bar = do_something
+      end
+    RUBY
+    status = cli.run(%w[--autocorrect-all --only Lint/UselessAssignment])
+    expect($stdout.string).to eq(<<~RESULT)
+      Inspecting 1 file
+      W
+
+      Offenses:
+
+      example.rb:2:3: W: [Corrected] Lint/UselessAssignment: Useless assignment to variable - bar.
+        bar = do_something
+        ^^^
+      example.rb:2:3: W: [Corrected] Lint/UselessAssignment: Useless assignment to variable - foo.
+        foo = bar = do_something
+        ^^^
+
+      1 file inspected, 2 offenses detected, 2 offenses corrected
+    RESULT
+    expect(status).to eq(0)
+    expect(source_file.read).to eq(<<~RUBY)
+      def some_method
+        do_something
       end
     RUBY
   end
@@ -2966,6 +3200,32 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       end
       puts 1; class << self
               end
+    RUBY
+  end
+
+  it 'corrects `Layout/EndAlignment` when `end` is not aligned with beginning of a singleton class assignment ' \
+     'and EnforcedStyleAlignWith is set to `variable` style' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      def thing
+        @thing ||= class << Object.new
+          end
+      end
+    RUBY
+
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/EndAlignment:
+        EnforcedStyleAlignWith: variable
+    YAML
+
+    status = cli.run(%w[--autocorrect --only Layout/EndAlignment])
+    expect(status).to eq(0)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      def thing
+        @thing ||= class << Object.new
+        end
+      end
     RUBY
   end
 

@@ -370,7 +370,8 @@ module RuboCop
         def special_method_proper_block_style?(node)
           method_name = node.method_name
           return true if allowed_method?(method_name) || matches_allowed_pattern?(method_name)
-          return node.braces? if braces_required_method?(method_name)
+
+          node.braces? if braces_required_method?(method_name)
         end
 
         def braces_required_method?(method_name)
@@ -411,7 +412,7 @@ module RuboCop
         end
 
         def correction_would_break_code?(node)
-          return unless node.keywords?
+          return false unless node.keywords?
 
           node.send_node.arguments? && !node.send_node.parenthesized?
         end
@@ -433,7 +434,7 @@ module RuboCop
         end
 
         def return_value_used?(node)
-          return unless node.parent
+          return false unless node.parent
 
           # If there are parentheses around the block, check if that
           # is being used.
@@ -445,7 +446,7 @@ module RuboCop
         end
 
         def return_value_of_scope?(node)
-          return unless node.parent
+          return false unless node.parent
 
           conditional?(node.parent) || array_or_range?(node.parent) ||
             node.parent.children.last == node

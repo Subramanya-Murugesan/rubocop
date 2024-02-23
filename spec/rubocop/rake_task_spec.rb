@@ -98,7 +98,7 @@ RSpec.describe RuboCop::RakeTask do
       Rake::Task['rubocop'].execute
     end
 
-    it 'will not error when result is not 0 and fail_on_error is false' do
+    it 'does not error when result is not 0 and fail_on_error is false' do
       described_class.new { |task| task.fail_on_error = false }
 
       cli = instance_double(RuboCop::CLI, run: 1)
@@ -131,8 +131,8 @@ RSpec.describe RuboCop::RakeTask do
       expect($stdout.string).to eq(<<~RESULT)
         Running RuboCop...
 
-        1  Style/FrozenStringLiteralComment
-        1  Style/SpecialGlobalVars
+        1  Style/FrozenStringLiteralComment [Unsafe Correctable]
+        1  Style/SpecialGlobalVars [Unsafe Correctable]
         --
         2  Total in 1 files
 
@@ -165,7 +165,7 @@ RSpec.describe RuboCop::RakeTask do
         Rake::Task['rubocop:autocorrect_all'].execute
       end
 
-      it 'runs with with the options that were passed to its parent task' do
+      it 'runs with the options that were passed to its parent task' do
         described_class.new do |task|
           task.patterns = ['lib/**/*.rb']
           task.formatters = ['files']

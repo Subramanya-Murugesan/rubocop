@@ -29,6 +29,58 @@ RSpec.describe RuboCop::Cop::Style::MapToHash, :config do
         end
       end
 
+      context "for `#{method}.to_h` without receiver" do
+        it 'registers an offense and corrects' do
+          expect_offense(<<~RUBY, method: method)
+            #{method} { |x| [x, x * 2] }.to_h
+            ^{method} Pass a block to `to_h` instead of calling `#{method}.to_h`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            to_h { |x| [x, x * 2] }
+          RUBY
+        end
+      end
+
+      context "for `#{method}&.to_h` with block arity 1" do
+        it 'registers an offense and corrects' do
+          expect_offense(<<~RUBY, method: method)
+            foo&.#{method} { |x| [x, x * 2] }&.to_h
+                 ^{method} Pass a block to `to_h` instead of calling `#{method}&.to_h`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            foo&.to_h { |x| [x, x * 2] }
+          RUBY
+        end
+      end
+
+      context "for `&.#{method}.to_h` with block arity 1" do
+        it 'registers an offense and corrects' do
+          expect_offense(<<~RUBY, method: method)
+            foo&.#{method} { |x| [x, x * 2] }.to_h
+                 ^{method} Pass a block to `to_h` instead of calling `#{method}.to_h`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            foo.to_h { |x| [x, x * 2] }
+          RUBY
+        end
+      end
+
+      context "for `#{method}&.to_h` with block arity 2" do
+        it 'registers an offense and corrects' do
+          expect_offense(<<~RUBY, method: method)
+            foo&.#{method} { |x, y| [x.to_s, y.to_i] }&.to_h
+                 ^{method} Pass a block to `to_h` instead of calling `#{method}&.to_h`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            foo&.to_h { |x, y| [x.to_s, y.to_i] }
+          RUBY
+        end
+      end
+
       context 'when using numbered parameters', :ruby27 do
         context "for `#{method}.to_h` with block arity 1" do
           it 'registers an offense and corrects' do
@@ -66,6 +118,19 @@ RSpec.describe RuboCop::Cop::Style::MapToHash, :config do
 
           expect_correction(<<~RUBY)
             foo.to_h(&:do_something)
+          RUBY
+        end
+      end
+
+      context "for `#{method}&.to_h` with symbol proc" do
+        it 'registers an offense and corrects' do
+          expect_offense(<<~RUBY, method: method)
+            foo&.#{method}(&:do_something)&.to_h
+                 ^{method} Pass a block to `to_h` instead of calling `#{method}&.to_h`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            foo&.to_h(&:do_something)
           RUBY
         end
       end
@@ -111,7 +176,7 @@ RSpec.describe RuboCop::Cop::Style::MapToHash, :config do
 
       context "`#{method}` without `to_h`" do
         it 'does not register an offense' do
-          expect_no_offenses(<<~RUBY, method: method)
+          expect_no_offenses(<<~RUBY)
             foo.#{method} { |x| x * 2 }
           RUBY
         end

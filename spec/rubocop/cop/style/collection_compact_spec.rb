@@ -18,6 +18,23 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
     RUBY
   end
 
+  it 'registers an offense and corrects when using safe navigation `reject` call on array to reject nils' do
+    expect_offense(<<~RUBY)
+      array&.reject { |e| e&.nil? }
+             ^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { |e| e&.nil? }`.
+      array&.delete_if { |e| e&.nil? }
+             ^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if { |e| e&.nil? }`.
+      array&.reject! { |e| e&.nil? }
+             ^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `reject! { |e| e&.nil? }`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      array&.compact
+      array&.compact
+      array&.compact!
+    RUBY
+  end
+
   it 'registers an offense and corrects when using `reject` with block pass arg on array to reject nils' do
     expect_offense(<<~RUBY)
       array.reject(&:nil?)
@@ -32,6 +49,23 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       array.compact
       array.compact
       array.compact!
+    RUBY
+  end
+
+  it 'registers an offense and corrects when using safe navigation `reject` call with block pass arg on array to reject nils' do
+    expect_offense(<<~RUBY)
+      array&.reject(&:nil?)
+             ^^^^^^^^^^^^^^ Use `compact` instead of `reject(&:nil?)`.
+      array&.delete_if(&:nil?)
+             ^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if(&:nil?)`.
+      array&.reject!(&:nil?)
+             ^^^^^^^^^^^^^^^ Use `compact!` instead of `reject!(&:nil?)`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      array&.compact
+      array&.compact
+      array&.compact!
     RUBY
   end
 
@@ -80,6 +114,20 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
     RUBY
   end
 
+  it 'registers an offense and corrects when using safe navigation `select/select!` call to reject nils' do
+    expect_offense(<<~RUBY)
+      array&.select { |e| e&.nil?&.! }
+             ^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `select { |e| e&.nil?&.! }`.
+      hash&.select! { |k, v| v&.nil?&.! }
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `select! { |k, v| v&.nil?&.! }`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      array&.compact
+      hash&.compact!
+    RUBY
+  end
+
   it 'registers an offense and corrects when using `reject` and receiver is a variable' do
     expect_offense(<<~RUBY)
       def foo(params)
@@ -95,6 +143,45 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
         params.compact
         params.compact
       end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when using `grep_v(nil)`' do
+    expect_offense(<<~RUBY)
+      array.grep_v(nil)
+            ^^^^^^^^^^^ Use `compact` instead of `grep_v(nil)`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      array.compact
+    RUBY
+  end
+
+  it 'registers an offense and corrects when using `grep_v(NilClass)`' do
+    expect_offense(<<~RUBY)
+      array.grep_v(NilClass)
+            ^^^^^^^^^^^^^^^^ Use `compact` instead of `grep_v(NilClass)`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      array.compact
+    RUBY
+  end
+
+  it 'registers an offense and corrects when using `grep_v(::NilClass)`' do
+    expect_offense(<<~RUBY)
+      array.grep_v(::NilClass)
+            ^^^^^^^^^^^^^^^^^^ Use `compact` instead of `grep_v(::NilClass)`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      array.compact
+    RUBY
+  end
+
+  it 'does not register an offense and corrects when using `grep_v(pattern)`' do
+    expect_no_offenses(<<~RUBY)
+      array.grep_v(pattern)
     RUBY
   end
 

@@ -115,8 +115,8 @@ module RuboCop
       end
 
       # Check for `if` and `case` statements where each branch is used for
-      # assignment to the same variable when using the return of the
-      # condition can be used instead.
+      # both the assignment and comparison of the same variable
+      # when using the return of the condition can be used instead.
       #
       # @example EnforcedStyle: assign_to_condition (default)
       #   # bad
@@ -233,7 +233,7 @@ module RuboCop
         PATTERN
 
         ASSIGNMENT_TYPES.each do |type|
-          define_method "on_#{type}" do |node|
+          define_method :"on_#{type}" do |node|
             return if part_of_ignored_node?(node)
             return if node.parent&.shorthand_asgn?
 
@@ -361,7 +361,7 @@ module RuboCop
         end
 
         def assignment_types_match?(*nodes)
-          return unless assignment_type?(nodes.first)
+          return false unless assignment_type?(nodes.first)
 
           nodes.map(&:type).uniq.one?
         end
@@ -460,9 +460,8 @@ module RuboCop
 
         def assignment(node)
           *_, condition = *node
-          Parser::Source::Range.new(node.source_range.source_buffer,
-                                    node.source_range.begin_pos,
-                                    condition.source_range.begin_pos)
+
+          node.source_range.begin.join(condition.source_range.begin)
         end
 
         def correct_if_branches(corrector, cop, node)
@@ -534,7 +533,7 @@ module RuboCop
           end
 
           def element_assignment?(node)
-            node.send_type? && node.method_name != :[]=
+            node.send_type? && !node.method?(:[]=)
           end
 
           def extract_branches(node)

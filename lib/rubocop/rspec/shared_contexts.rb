@@ -11,6 +11,8 @@ RSpec.shared_context 'isolated environment' do # rubocop:disable Metrics/BlockLe
       # Make sure to expand all symlinks in the path first. Otherwise we may
       # get mismatched pathnames when loading config files later on.
       tmpdir = File.realpath(tmpdir)
+      # Make upwards search for .rubocop.yml files stop at this directory.
+      RuboCop::FileFinder.root_level = tmpdir
 
       virtual_home = File.expand_path(File.join(tmpdir, 'home'))
       Dir.mkdir(virtual_home)
@@ -20,9 +22,6 @@ RSpec.shared_context 'isolated environment' do # rubocop:disable Metrics/BlockLe
       base_dir = example.metadata[:project_inside_home] ? virtual_home : tmpdir
       root = example.metadata[:root]
       working_dir = root ? File.join(base_dir, 'work', root) : File.join(base_dir, 'work')
-
-      # Make upwards search for .rubocop.yml files stop at this directory.
-      RuboCop::FileFinder.root_level = working_dir
 
       begin
         FileUtils.mkdir_p(working_dir)
@@ -101,10 +100,10 @@ RSpec.shared_context 'config' do # rubocop:disable Metrics/BlockLength
   let(:cur_cop_config) do
     RuboCop::ConfigLoader
       .default_configuration.for_cop(cop_class)
-      .merge({
-               'Enabled' => true, # in case it is 'pending'
-               'AutoCorrect' => true # in case defaults set it to false
-             })
+      .merge(
+        'Enabled' => true, # in case it is 'pending'
+        'AutoCorrect' => 'always' # in case defaults set it to 'disabled' or false
+      )
       .merge(cop_config)
   end
 
@@ -126,6 +125,16 @@ RSpec.shared_context 'mock console output' do
   after do
     $stdout = STDOUT
     $stderr = STDERR
+  end
+end
+
+RSpec.shared_context 'lsp' do
+  before do
+    RuboCop::LSP.enable
+  end
+
+  after do
+    RuboCop::LSP.disable
   end
 end
 

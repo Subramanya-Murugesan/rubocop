@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'language_server-protocol'
+require_relative '../lsp'
 require_relative 'logger'
 require_relative 'routes'
 require_relative 'runtime'
@@ -15,14 +16,16 @@ require_relative 'runtime'
 # https://github.com/standardrb/standard/blob/main/LICENSE.txt
 #
 module RuboCop
-  module Lsp
+  module LSP
     # Language Server Protocol of RuboCop.
     # @api private
     class Server
       def initialize(config_store)
+        RuboCop::LSP.enable
+
         @reader = LanguageServer::Protocol::Transport::Io::Reader.new($stdin)
         @writer = LanguageServer::Protocol::Transport::Io::Writer.new($stdout)
-        @runtime = RuboCop::Lsp::Runtime.new(config_store)
+        @runtime = RuboCop::LSP::Runtime.new(config_store)
         @routes = Routes.new(self)
       end
 
@@ -36,8 +39,8 @@ module RuboCop
             @routes.handle_unsupported_method(request)
           end
         rescue StandardError => e
-          log("Error #{e.class} #{e.message[0..100]}")
-          log(e.backtrace.inspect)
+          Logger.log("Error #{e.class} #{e.message[0..100]}")
+          Logger.log(e.backtrace.inspect)
         end
       end
 
@@ -45,12 +48,18 @@ module RuboCop
         @writer.write(response)
       end
 
-      def format(path, text)
-        @runtime.format(path, text)
+      def format(path, text, command:)
+        @runtime.format(path, text, command: command)
       end
 
       def offenses(path, text)
         @runtime.offenses(path, text)
+      end
+
+      def configure(options)
+        @runtime.safe_autocorrect = options[:safe_autocorrect]
+        @runtime.lint_mode = options[:lint_mode]
+        @runtime.layout_mode = options[:layout_mode]
       end
 
       def stop(&block)

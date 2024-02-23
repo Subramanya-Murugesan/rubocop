@@ -12,12 +12,12 @@ require_relative 'severity'
 # https://github.com/standardrb/standard/blob/main/LICENSE.txt
 #
 module RuboCop
-  module Lsp
+  module LSP
     # Routes for Language Server Protocol of RuboCop.
     # @api private
     class Routes
       def self.handle(name, &block)
-        define_method("handle_#{name}", &block)
+        define_method(:"handle_#{name}", &block)
       end
 
       private_class_method :handle
@@ -36,12 +36,19 @@ module RuboCop
       end
 
       handle 'initialize' do |request|
+        initialization_options = extract_initialization_options_from(request)
+
+        @server.configure(initialization_options)
+
         @server.write(
           id: request[:id],
           result: LanguageServer::Protocol::Interface::InitializeResult.new(
             capabilities: LanguageServer::Protocol::Interface::ServerCapabilities.new(
               document_formatting_provider: true,
-              diagnostic_provider: true,
+              diagnostic_provider: LanguageServer::Protocol::Interface::DiagnosticOptions.new(
+                inter_file_dependencies: false,
+                workspace_diagnostics: false
+              ),
               text_document_sync: LanguageServer::Protocol::Interface::TextDocumentSyncOptions.new(
                 change: LanguageServer::Protocol::Constant::TextDocumentSyncKind::FULL,
                 open_close: true
@@ -108,23 +115,29 @@ module RuboCop
       end
 
       handle 'workspace/executeCommand' do |request|
-        if request[:params][:command] == 'rubocop.formatAutocorrects'
-          uri = request[:params][:arguments][0][:uri]
-          @server.write(
-            id: request[:id],
-            method: 'workspace/applyEdit',
-            params: {
-              label: 'Format with RuboCop autocorrects',
-              edit: {
-                changes: {
-                  uri => format_file(uri)
-                }
+        case (command = request[:params][:command])
+        when 'rubocop.formatAutocorrects'
+          label = 'Format with RuboCop autocorrects'
+        when 'rubocop.formatAutocorrectsAll'
+          label = 'Format all with RuboCop autocorrects'
+        else
+          handle_unsupported_method(request, command)
+          return
+        end
+
+        uri = request[:params][:arguments][0][:uri]
+        @server.write(
+          id: request[:id],
+          method: 'workspace/applyEdit',
+          params: {
+            label: label,
+            edit: {
+              changes: {
+                uri => format_file(uri, command: command)
               }
             }
-          )
-        else
-          handle_unsupported_method(request, request[:params][:command])
-        end
+          }
+        )
       end
 
       handle 'textDocument/willSave' do |_request|
@@ -162,14 +175,24 @@ module RuboCop
 
       private
 
-      def format_file(file_uri)
+      def extract_initialization_options_from(request)
+        safe_autocorrect = request.dig(:params, :initializationOptions, :safeAutocorrect)
+
+        {
+          safe_autocorrect: safe_autocorrect.nil? || safe_autocorrect == true,
+          lint_mode: request.dig(:params, :initializationOptions, :lintMode) == true,
+          layout_mode: request.dig(:params, :initializationOptions, :layoutMode) == true
+        }
+      end
+
+      def format_file(file_uri, command: nil)
         unless (text = @text_cache[file_uri])
           Logger.log("Format request arrived before text synchronized; skipping: `#{file_uri}'")
 
           return []
         end
 
-        new_text = @server.format(remove_file_protocol_from(file_uri), text)
+        new_text = @server.format(remove_file_protocol_from(file_uri), text, command: command)
 
         return [] if new_text == text
 
